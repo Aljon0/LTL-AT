@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import React from "react";
 
-const OverviewTab = ({ user, posts }) => {
+const OverviewTab = ({ user, posts, onUpdateProfile }) => {
   const stats = [
     {
       label: "Total Posts",
@@ -35,7 +35,7 @@ const OverviewTab = ({ user, posts }) => {
     },
     {
       label: "Subscription",
-      value: user.subscription,
+      value: user?.subscription || "Free",
       icon: Crown,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
@@ -84,12 +84,74 @@ const OverviewTab = ({ user, posts }) => {
             <Upload className="w-5 h-5" />
             <span>Upload Documents</span>
           </button>
-          <button className="flex items-center space-x-3 p-5 rounded-xl border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-all duration-200 cursor-pointer font-medium">
+          <button
+            onClick={onUpdateProfile}
+            className="flex items-center space-x-3 p-5 rounded-xl border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-all duration-200 cursor-pointer font-medium"
+          >
             <Settings className="w-5 h-5" />
             <span>Update Profile</span>
           </button>
         </div>
       </div>
+
+      {/* User Profile Summary */}
+      {user && (
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-zinc-200/60 shadow-xl shadow-zinc-200/50">
+          <h3 className="text-xl font-semibold text-zinc-900 mb-6">
+            Profile Summary
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900 mb-2">
+                  Content Goals
+                </h4>
+                <p className="text-sm text-zinc-600 bg-zinc-50 p-3 rounded-lg">
+                  {user.goals || "No goals set yet"}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900 mb-2">
+                  Voice Style
+                </h4>
+                <p className="text-sm text-zinc-600 bg-zinc-50 p-3 rounded-lg capitalize">
+                  {user.voiceStyle?.replace("-", " ") || "Not selected"}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900 mb-2">
+                  Post Frequency
+                </h4>
+                <p className="text-sm text-zinc-600 bg-zinc-50 p-3 rounded-lg capitalize">
+                  {user.postFrequency?.replace("-", " ") || "Not set"}
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-zinc-900 mb-2">
+                  Topics ({user.topics?.length || 0})
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {user.topics?.slice(0, 3).map((topic, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-zinc-100 text-zinc-700 rounded-full text-xs font-medium"
+                    >
+                      {topic}
+                    </span>
+                  ))}
+                  {user.topics?.length > 3 && (
+                    <span className="px-3 py-1 bg-zinc-200 text-zinc-600 rounded-full text-xs font-medium">
+                      +{user.topics.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Performance Overview */}
       <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-zinc-200/60 shadow-xl shadow-zinc-200/50">

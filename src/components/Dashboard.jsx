@@ -29,7 +29,7 @@ const Dashboard = ({ user, posts }) => {
 
         {/* Tab Navigation */}
         <div className="mb-8">
-          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-2 border border-zinc-200/60 inline-flex shadow-lg">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-2 border cursor-pointer border-zinc-200/60 inline-flex shadow-lg">
             {tabs.map((tab) => (
               <button
                 key={tab.id}

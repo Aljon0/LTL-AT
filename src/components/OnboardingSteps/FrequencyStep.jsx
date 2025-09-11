@@ -6,26 +6,30 @@ const FrequencyStep = ({ data, setData }) => {
     {
       id: "daily",
       label: "Daily",
-      desc: "High-frequency posting",
-      posts: "7 posts per week",
+      desc: "1 post per day",
+      icon: Calendar,
+      recommendation: "Best for building strong engagement",
+    },
+    {
+      id: "3-times-week",
+      label: "3x per week",
+      desc: "3 posts per week",
+      icon: Calendar,
+      recommendation: "Balanced approach for professionals",
     },
     {
       id: "weekly",
-      label: "2-3 times per week",
-      desc: "Regular presence",
-      posts: "~12 posts per month",
-    },
-    {
-      id: "biweekly",
       label: "Weekly",
-      desc: "Consistent updates",
-      posts: "4 posts per month",
+      desc: "1 post per week",
+      icon: Calendar,
+      recommendation: "Sustainable for busy schedules",
     },
     {
-      id: "monthly",
+      id: "bi-weekly",
       label: "Bi-weekly",
-      desc: "Quality over quantity",
-      posts: "2 posts per month",
+      desc: "Every 2 weeks",
+      icon: Clock,
+      recommendation: "Good for thought leadership",
     },
   ];
 
@@ -39,37 +43,41 @@ const FrequencyStep = ({ data, setData }) => {
           How often do you want to post?
         </h3>
         <p className="text-zinc-600 font-medium">
-          We'll generate and schedule content based on your preferred frequency.
+          Choose a posting frequency that you can maintain consistently.
         </p>
       </div>
 
-      <div className="space-y-3">
-        {frequencies.map((freq) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {frequencies.map((frequency) => (
           <button
-            key={freq.id}
-            onClick={() => setData({ ...data, postFrequency: freq.id })}
-            className={`w-full p-5 rounded-xl border-2 transition-all duration-200 text-left ${
-              data.postFrequency === freq.id
+            key={frequency.id}
+            onClick={() => setData({ ...data, postFrequency: frequency.id })}
+            className={`p-5 rounded-xl border-2 transition-all duration-200 text-left ${
+              data.postFrequency === frequency.id
                 ? "border-zinc-600 bg-zinc-50 shadow-md"
                 : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/50"
             }`}
           >
-            <div className="flex justify-between items-center">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3 mb-2">
-                  <p className="font-semibold text-zinc-900">{freq.label}</p>
-                  <span className="text-xs bg-zinc-100 text-zinc-600 px-2 py-1 rounded-full font-medium">
-                    {freq.posts}
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-600 font-medium">{freq.desc}</p>
-              </div>
+            <div className="flex items-start space-x-3 mb-3">
               <div
                 className={`p-2 rounded-xl ${
-                  data.postFrequency === freq.id ? "bg-zinc-200" : "bg-zinc-100"
+                  data.postFrequency === frequency.id
+                    ? "bg-zinc-200"
+                    : "bg-zinc-100"
                 }`}
               >
-                <Clock className="w-5 h-5 text-zinc-600" />
+                <frequency.icon className="w-5 h-5 text-zinc-600" />
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-zinc-900 mb-1">
+                  {frequency.label}
+                </p>
+                <p className="text-sm text-zinc-600 font-medium mb-2">
+                  {frequency.desc}
+                </p>
+                <p className="text-xs text-zinc-500 font-medium">
+                  {frequency.recommendation}
+                </p>
               </div>
             </div>
           </button>
@@ -77,11 +85,15 @@ const FrequencyStep = ({ data, setData }) => {
       </div>
 
       <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-        <p className="text-sm text-zinc-600 font-medium">
-          💡 <strong>Tip:</strong> Consistent posting is more effective than
-          sporadic high-frequency bursts. Choose a frequency you can maintain
-          long-term.
-        </p>
+        <h4 className="text-sm font-semibold text-zinc-900 mb-2">
+          Posting Frequency Tips:
+        </h4>
+        <ul className="text-sm text-zinc-600 space-y-1 font-medium">
+          <li>• Consistency is more important than frequency</li>
+          <li>• Start with a manageable schedule you can maintain</li>
+          <li>• You can always adjust your frequency later</li>
+          <li>• Quality content matters more than quantity</li>
+        </ul>
       </div>
     </div>
   );

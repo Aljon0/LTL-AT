@@ -1,5 +1,6 @@
-import { Bot, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import React, { useState } from "react";
+import { profileService } from "../services/profileService";
 import ComplianceStep from "./OnboardingSteps/ComplianceStep";
 import DocumentsStep from "./OnboardingSteps/DocumentsStep";
 import FrequencyStep from "./OnboardingSteps/FrequencyStep";
@@ -8,11 +9,18 @@ import LinkedInStep from "./OnboardingSteps/LinkedInStep";
 import TopicsStep from "./OnboardingSteps/TopicsStep";
 import VoiceStep from "./OnboardingSteps/VoiceStep";
 
-const OnboardingFlow = ({ onComplete }) => {
+const OnboardingFlow = ({ onComplete, userId }) => {
   const [step, setStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [data, setData] = useState({
     topics: [],
     documents: [],
+    linkedinUrl: "",
+    goals: "",
+    voiceStyle: "",
+    postFrequency: "",
+    complianceOptIn: false,
   });
 
   const steps = [
@@ -25,16 +33,103 @@ const OnboardingFlow = ({ onComplete }) => {
     { title: "Compliance", key: "compliance" },
   ];
 
-  const handleNext = () => {
+  const validateStep = (currentStep) => {
+    setError(null);
+
+    switch (currentStep) {
+      case 0: // LinkedIn step
+        if (!data.linkedinUrl) {
+          setError("Please enter your LinkedIn URL");
+          return false;
+        }
+        const linkedinPattern =
+          /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?$/;
+        if (!linkedinPattern.test(data.linkedinUrl)) {
+          setError("Please enter a valid LinkedIn URL");
+          return false;
+        }
+        break;
+      case 2: // Goals step
+        if (!data.goals || data.goals.trim().length < 10) {
+          setError(
+            "Please describe your content goals (at least 10 characters)"
+          );
+          return false;
+        }
+        break;
+      case 3: // Voice step
+        if (!data.voiceStyle) {
+          setError("Please select a voice style");
+          return false;
+        }
+        break;
+      case 4: // Topics step
+        if (!data.topics || data.topics.length === 0) {
+          setError("Please select at least one topic");
+          return false;
+        }
+        break;
+      case 5: // Frequency step
+        if (!data.postFrequency) {
+          setError("Please select a posting frequency");
+          return false;
+        }
+        break;
+      case 6: // Compliance step
+        if (!data.complianceOptIn) {
+          setError("Please accept the terms and privacy policy to continue");
+          return false;
+        }
+        break;
+    }
+    return true;
+  };
+
+  const handleNext = async () => {
+    if (!validateStep(step)) {
+      return;
+    }
+
     if (step < steps.length - 1) {
       setStep(step + 1);
     } else {
+      // Final step - save profile
+      await handleComplete();
+    }
+  };
+
+  const handleComplete = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const profileData = {
+        userId,
+        linkedinUrl: data.linkedinUrl,
+        goals: data.goals,
+        voiceStyle: data.voiceStyle,
+        topics: data.topics,
+        postFrequency: data.postFrequency,
+        complianceOptIn: data.complianceOptIn,
+      };
+
+      await profileService.saveProfile(profileData, data.documents);
+
+      // Call the onComplete callback to redirect to dashboard
       onComplete();
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      setError("Failed to save profile. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleBack = () => {
-    if (step > 0) setStep(step - 1);
+    if (step > 0) {
+      setStep(step - 1);
+      setError(null);
+    }
   };
 
   const progress = ((step + 1) / steps.length) * 100;
@@ -76,6 +171,13 @@ const OnboardingFlow = ({ onComplete }) => {
             </div>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-sm text-red-700 font-medium">{error}</p>
+            </div>
+          )}
+
           {/* Step Content */}
           <div className="space-y-6 mb-8">
             {step === 0 && <LinkedInStep data={data} setData={setData} />}
@@ -91,7 +193,7 @@ const OnboardingFlow = ({ onComplete }) => {
           <div className="flex justify-between pt-6 border-t border-zinc-200">
             <button
               onClick={handleBack}
-              disabled={step === 0}
+              disabled={step === 0 || isLoading}
               className="flex items-center space-x-2 px-6 py-3 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -100,12 +202,18 @@ const OnboardingFlow = ({ onComplete }) => {
 
             <button
               onClick={handleNext}
-              className="flex items-center space-x-2 px-8 py-3 cursor-pointer bg-gradient-to-r from-zinc-700 to-zinc-900 hover:from-zinc-800 hover:to-black text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
+              disabled={isLoading}
+              className="flex items-center space-x-2 px-8 py-3 cursor-pointer bg-gradient-to-r from-zinc-700 to-zinc-900 hover:from-zinc-800 hover:to-black text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
+              {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
               <span>
-                {step === steps.length - 1 ? "Complete Setup" : "Continue"}
+                {isLoading
+                  ? "Saving..."
+                  : step === steps.length - 1
+                  ? "Complete Setup"
+                  : "Continue"}
               </span>
-              <ChevronRight className="w-5 h-5" />
+              {!isLoading && <ChevronRight className="w-5 h-5" />}
             </button>
           </div>
         </div>

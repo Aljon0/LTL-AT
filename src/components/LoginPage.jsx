@@ -83,7 +83,7 @@ const LoginPage = ({ onLogin }) => {
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading !== null}
-            className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-white hover:bg-gray-50 border border-zinc-300 rounded-xl transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed group font-medium"
+            className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-white hover:bg-gray-50 border border-zinc-300 rounded-xl transition-all cursor-pointer duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed group font-medium"
           >
             {isLoading === "google" ? (
               <div className="w-5 h-5 border-2 border-zinc-300 border-t-zinc-600 rounded-full animate-spin" />
@@ -117,7 +117,7 @@ const LoginPage = ({ onLogin }) => {
           <button
             onClick={handleLinkedInLogin}
             disabled={isLoading !== null}
-            className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-[#0077B5] hover:bg-[#005885] text-white rounded-xl transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed group font-medium"
+            className="w-full flex items-center justify-center cursor-pointer space-x-3 px-6 py-4 bg-[#0077B5] hover:bg-[#005885] text-white rounded-xl transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed group font-medium"
           >
             {isLoading === "linkedin" ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
