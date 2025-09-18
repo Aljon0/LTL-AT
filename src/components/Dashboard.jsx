@@ -1,19 +1,15 @@
-import { BarChart3, FileText, MessageCircle, Settings } from "lucide-react";
+import { Settings, Zap } from "lucide-react";
 import React, { useState } from "react";
-import FeedbackTab from "./DashboardTabs/FeedbackTab";
-import OverviewTab from "./DashboardTabs/OverviewTab";
-import PostHistoryTab from "./DashboardTabs/PostHistoryTab";
+import AutomationTab from "./DashboardTabs/AutomationTab";
 import SettingsTab from "./DashboardTabs/SettingsTab";
 
-const Dashboard = ({ user, posts }) => {
-  const [activeTab, setActiveTab] = useState("overview");
+const Dashboard = ({ user, posts, onRefresh, setCurrentView }) => {
+  const [activeTab, setActiveTab] = useState("automation");
 
   if (!user) return null;
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: BarChart3 },
-    { id: "posts", label: "Post History", icon: FileText },
-    { id: "feedback", label: "Feedback", icon: MessageCircle },
+    { id: "automation", label: "Automation", icon: Zap },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -23,7 +19,7 @@ const Dashboard = ({ user, posts }) => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-zinc-900 mb-2">Dashboard</h1>
           <p className="text-zinc-600 font-medium">
-            Manage your LinkedIn content and track performance
+            Manage your automated LinkedIn content generation
           </p>
         </div>
 
@@ -49,12 +45,17 @@ const Dashboard = ({ user, posts }) => {
 
         {/* Tab Content */}
         <div className="transition-all duration-300">
-          {activeTab === "overview" && (
-            <OverviewTab user={user} posts={posts} />
+          {activeTab === "automation" && (
+            <AutomationTab
+              user={user}
+              posts={posts}
+              onRefresh={onRefresh}
+              setCurrentView={setCurrentView}
+            />
           )}
-          {activeTab === "posts" && <PostHistoryTab posts={posts} />}
-          {activeTab === "feedback" && <FeedbackTab posts={posts} />}
-          {activeTab === "settings" && <SettingsTab user={user} />}
+          {activeTab === "settings" && (
+            <SettingsTab user={user} onRefresh={onRefresh} />
+          )}
         </div>
       </div>
     </div>

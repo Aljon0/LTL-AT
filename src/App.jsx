@@ -6,9 +6,12 @@ import LinkedInCallback from "./components/LinkedInCallback";
 import LoginPage from "./components/LoginPage";
 import Navigation from "./components/Navigation";
 import OnboardingFlow from "./components/OnboardingFlow";
+import PaymentReceipt from "./components/PaymentReceipt";
 import PricingPage from "./components/PricingPage";
+import StripePayment from "./components/StripePayment";
 import { auth, signOutUser } from "./lib/firebase";
 import { AuthService } from "./services/authService.js";
+import { profileService } from "./services/profileService";
 
 // Loading Component
 const LoadingScreen = () => (
@@ -27,10 +30,15 @@ const LoadingScreen = () => (
 const App = () => {
   const [currentView, setCurrentView] = useState("login");
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+
+  // Payment flow state
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [paymentData, setPaymentData] = useState(null);
 
   const authService = AuthService.getInstance();
 
@@ -38,33 +46,35 @@ const App = () => {
   const isLinkedInCallback =
     window.location.pathname === "/auth/linkedin/callback";
 
-  // Sample data
-  useEffect(() => {
-    setPosts([
-      {
-        id: "1",
-        content:
-          "The future of AI in business is not about replacing humans, but augmenting human capabilities...",
-        createdAt: new Date("2025-08-28"),
-        status: "published",
-        feedback: "up",
-        engagement: 127,
-      },
-      {
-        id: "2",
-        content:
-          "Three key lessons from scaling a SaaS startup from 0 to $1M ARR...",
-        createdAt: new Date("2025-08-25"),
-        status: "published",
-        feedback: "up",
-        engagement: 89,
-      },
-    ]);
-  }, []);
+  // Function to check onboarding status and load user profile
+  const loadUserProfile = async (userId) => {
+    try {
+      // Check onboarding status
+      const setupStatus = await profileService.checkSetupStatus(userId);
+      setHasCompletedOnboarding(setupStatus.setupCompleted);
+
+      if (setupStatus.setupCompleted) {
+        // Load full user profile
+        const profileResult = await profileService.getProfile(userId);
+        if (profileResult.profile) {
+          setUserProfile(profileResult.profile);
+
+          // Load user's posts
+          const postsResult = await profileService.getPosts(userId);
+          setPosts(postsResult.posts || []);
+        }
+      }
+
+      return setupStatus.setupCompleted;
+    } catch (error) {
+      console.error("Error loading user profile:", error);
+      return false;
+    }
+  };
 
   // Listen to Firebase auth state changes
   useEffect(() => {
-    // Check for LinkedIn auth data in sessionStorage (in case popup closed unexpectedly)
+    // Check for LinkedIn auth data in sessionStorage
     const linkedInAuthData = sessionStorage.getItem("linkedin_auth_result");
     if (linkedInAuthData) {
       try {
@@ -100,13 +110,18 @@ const App = () => {
             userData = await authService.createOrUpdateUser(firebaseUser);
           }
 
-          setUser(userData);
+          // Add Firebase user properties to userData
+          const enhancedUserData = {
+            ...userData,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+          };
 
-          // Check if user has completed onboarding (you can store this in your backend)
-          const onboardingComplete = localStorage.getItem(
-            `onboarding_${firebaseUser.uid}`
-          );
-          setHasCompletedOnboarding(!!onboardingComplete);
+          setUser(enhancedUserData);
+
+          // Load user profile and check onboarding status
+          const onboardingComplete = await loadUserProfile(firebaseUser.uid);
 
           if (onboardingComplete) {
             setCurrentView("dashboard");
@@ -115,10 +130,12 @@ const App = () => {
           }
         } catch (error) {
           console.error("Error handling auth state change:", error);
-          // Handle error - maybe show error message or logout
+          setCurrentView("login");
         }
       } else {
         setUser(null);
+        setUserProfile(null);
+        setPosts([]);
         setCurrentView("login");
         setHasCompletedOnboarding(false);
       }
@@ -126,47 +143,96 @@ const App = () => {
       setIsLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
   }, [authService, isLinkedInCallback]);
 
-  const handleLogin = (userData) => {
+  const handleLogin = async (userData) => {
     setUser(userData);
-    // Check onboarding status
-    const onboardingComplete = localStorage.getItem(
-      `onboarding_${userData.id}`
-    );
-    if (onboardingComplete) {
-      setCurrentView("dashboard");
-      setHasCompletedOnboarding(true);
-    } else {
+
+    // Load user profile and check onboarding status
+    try {
+      const onboardingComplete = await loadUserProfile(
+        userData.uid || userData.id
+      );
+
+      if (onboardingComplete) {
+        setCurrentView("dashboard");
+      } else {
+        setCurrentView("onboarding");
+      }
+    } catch (error) {
+      console.error("Error checking onboarding status:", error);
       setCurrentView("onboarding");
     }
   };
 
-  const handleOnboardingComplete = () => {
-    if (user) {
-      localStorage.setItem(`onboarding_${user.id}`, "true");
-      setHasCompletedOnboarding(true);
+  const handleOnboardingComplete = async () => {
+    setHasCompletedOnboarding(true);
+
+    // Reload user profile after onboarding completion
+    if (user?.uid || user?.id) {
+      await loadUserProfile(user.uid || user.id);
     }
+
     setCurrentView("dashboard");
+  };
+
+  const refreshUserData = async () => {
+    if (user?.uid || user?.id) {
+      await loadUserProfile(user.uid || user.id);
+    }
   };
 
   const handleLogout = async () => {
     try {
       await signOutUser();
       setUser(null);
+      setUserProfile(null);
+      setPosts([]);
       setCurrentView("login");
       setIsMobileMenuOpen(false);
       setHasCompletedOnboarding(false);
-
-      // Clear local storage
-      if (user) {
-        localStorage.removeItem(`onboarding_${user.id}`);
-      }
+      setSelectedPlan(null);
+      setPaymentData(null);
     } catch (error) {
       console.error("Error signing out:", error);
     }
+  };
+
+  // Payment flow handlers
+  const handlePlanUpgrade = (planId) => {
+    setSelectedPlan(planId);
+    setCurrentView("payment");
+  };
+
+  const handlePaymentSuccess = async (paymentResult) => {
+    setPaymentData(paymentResult);
+
+    // Update user subscription in the database
+    try {
+      await profileService.upgradeSubscription(
+        user?.uid || user?.id,
+        paymentResult.plan
+      );
+
+      // Refresh user data to get updated subscription
+      await refreshUserData();
+
+      setCurrentView("receipt");
+    } catch (error) {
+      console.error("Error updating subscription:", error);
+    }
+  };
+
+  const handlePaymentCancel = () => {
+    setSelectedPlan(null);
+    setCurrentView("pricing");
+  };
+
+  const handleReceiptContinue = () => {
+    setPaymentData(null);
+    setSelectedPlan(null);
+    setCurrentView("dashboard");
   };
 
   // Handle LinkedIn callback
@@ -184,10 +250,20 @@ const App = () => {
     return <LoginPage onLogin={handleLogin} />;
   }
 
+  // Combine user auth data with profile data for components
+  const combinedUserData = {
+    ...user,
+    ...userProfile,
+    // Ensure we have the essential properties
+    uid: user?.uid || user?.id,
+    email: user?.email || userProfile?.email,
+    name: user?.name || user?.displayName || userProfile?.name,
+  };
+
   return (
     <div className="min-h-screen bg-zinc-50">
       <Navigation
-        user={user}
+        user={combinedUserData}
         currentView={currentView}
         setCurrentView={setCurrentView}
         isMobileMenuOpen={isMobileMenuOpen}
@@ -197,10 +273,41 @@ const App = () => {
 
       <main className="transition-all duration-300">
         {currentView === "onboarding" && !hasCompletedOnboarding && (
-          <OnboardingFlow onComplete={handleOnboardingComplete} />
+          <OnboardingFlow
+            onComplete={handleOnboardingComplete}
+            userId={user?.uid || user?.id}
+          />
         )}
-        {currentView === "pricing" && <PricingPage />}
-        {currentView === "dashboard" && <Dashboard user={user} posts={posts} />}
+        {currentView === "pricing" && (
+          <PricingPage
+            user={combinedUserData}
+            onUpgrade={handlePlanUpgrade}
+            setCurrentView={setCurrentView}
+          />
+        )}
+        {currentView === "payment" && selectedPlan && (
+          <StripePayment
+            selectedPlan={selectedPlan}
+            user={combinedUserData}
+            onSuccess={handlePaymentSuccess}
+            onCancel={handlePaymentCancel}
+          />
+        )}
+        {currentView === "receipt" && paymentData && (
+          <PaymentReceipt
+            paymentData={paymentData}
+            user={combinedUserData}
+            onContinue={handleReceiptContinue}
+          />
+        )}
+        {currentView === "dashboard" && (
+          <Dashboard
+            user={combinedUserData}
+            posts={posts}
+            onRefresh={refreshUserData}
+            setCurrentView={setCurrentView}
+          />
+        )}
         {currentView === "admin" && user?.isAdmin && (
           <AdminPanel posts={posts} />
         )}

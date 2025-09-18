@@ -41,9 +41,27 @@ const Navigation = ({
   // Generate fallback avatar URL if none provided
   const avatarUrl =
     user.avatar ||
+    user.picture ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(
       user.name || "User"
     )}&background=6366f1&color=ffffff`;
+
+  // Get subscription badge styling
+  const getSubscriptionBadge = () => {
+    const subscription = user?.subscription || "free";
+    const badgeStyles = {
+      free: "bg-zinc-100 text-zinc-700 border-zinc-200",
+      standard: "bg-blue-100 text-blue-700 border-blue-200",
+      premium: "bg-amber-100 text-amber-700 border-amber-200",
+    };
+
+    return {
+      label: subscription.charAt(0).toUpperCase() + subscription.slice(1),
+      style: badgeStyles[subscription] || badgeStyles.free,
+    };
+  };
+
+  const subscriptionBadge = getSubscriptionBadge();
 
   return (
     <>
@@ -79,6 +97,13 @@ const Navigation = ({
               ))}
 
               <div className="flex items-center space-x-3 ml-6 pl-6 border-l border-zinc-200">
+                {/* Subscription Badge */}
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border ${subscriptionBadge.style}`}
+                >
+                  {subscriptionBadge.label}
+                </div>
+
                 <img
                   src={avatarUrl}
                   alt={user.name || "User"}
@@ -90,7 +115,7 @@ const Navigation = ({
                   }}
                 />
                 <span className="text-sm font-semibold text-zinc-700">
-                  {user.name || "User"}
+                  {user.name || user.displayName || "User"}
                 </span>
                 <button
                   onClick={handleLogoutClick}
@@ -149,9 +174,16 @@ const Navigation = ({
                     )}&background=6366f1&color=ffffff`;
                   }}
                 />
-                <span className="text-sm font-semibold text-zinc-700 flex-1">
-                  {user.name || "User"}
-                </span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-zinc-700">
+                    {user.name || user.displayName || "User"}
+                  </div>
+                  <div
+                    className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold border mt-1 ${subscriptionBadge.style}`}
+                  >
+                    {subscriptionBadge.label}
+                  </div>
+                </div>
                 <button
                   onClick={handleLogoutClick}
                   className="text-zinc-500 hover:text-zinc-700 p-2 rounded-xl hover:bg-zinc-100 transition-colors"
@@ -170,7 +202,7 @@ const Navigation = ({
         isOpen={showLogoutModal}
         onConfirm={handleLogoutConfirm}
         onCancel={handleLogoutCancel}
-        userName={user.name || "User"}
+        userName={user.name || user.displayName || "User"}
       />
     </>
   );
