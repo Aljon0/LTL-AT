@@ -213,7 +213,7 @@ const LoginPage = ({ onLogin }) => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
               disabled={isLoading}
             >
               {showPassword ? (
@@ -243,7 +243,7 @@ const LoginPage = ({ onLogin }) => {
             type="button"
             onClick={handleEmailAuth}
             disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-gradient-to-r from-zinc-700 to-zinc-900 hover:from-zinc-800 hover:to-zinc-950 text-white rounded-xl transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            className="w-full flex items-center justify-center space-x-3 px-6 py-4 cursor-pointer bg-gradient-to-r from-zinc-700 to-zinc-900 hover:from-zinc-800 hover:to-zinc-950 text-white rounded-xl transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -323,7 +323,7 @@ const LoginPage = ({ onLogin }) => {
                   name: "",
                 });
               }}
-              className="text-zinc-700 hover:text-zinc-900 font-medium transition-colors"
+              className="text-zinc-700 hover:text-zinc-900 font-medium transition-colors cursor-pointer"
               disabled={isLoading}
             >
               {isSignUp ? "Sign In" : "Sign Up"}
