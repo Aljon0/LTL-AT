@@ -9,9 +9,7 @@ import {
   Pause,
   Play,
   Send,
-  Settings,
   Target,
-  X,
   Zap,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
@@ -23,7 +21,6 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
   const [error, setError] = useState(null);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleSettings, setScheduleSettings] = useState({
     frequency: user?.postFrequency || "weekly",
     deliveryTime: user?.emailSettings?.deliveryTime || "09:00",
@@ -42,19 +39,31 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
       const info = await profileService.getSubscriptionInfo(
         user?.uid || user?.id
       );
-      setSubscriptionInfo(info);
+      // Use the user's actual subscription from the profile instead of the API response
+      const actualSubscription = user?.subscription || "free";
+      setSubscriptionInfo({
+        ...info,
+        subscription: actualSubscription,
+      });
     } catch (error) {
       console.error("Error loading subscription info:", error);
     }
   };
 
-  // Calculate posts left based on subscription
+  // Calculate posts left based on actual user subscription and pricing plan
   const getPostsLeft = () => {
     if (!subscriptionInfo) return 0;
-    return Math.max(
-      0,
-      subscriptionInfo.postsLimit - subscriptionInfo.postsUsed
-    );
+
+    // Use actual user subscription for limits calculation based on pricing plan
+    const actualSubscription = user?.subscription || "free";
+    const limits = {
+      free: 2, // 1 delivery per month = 2 posts (1 short + 1 long)
+      standard: 8, // 1 delivery per week = 8 posts per month (4 weeks × 2 posts)
+      pro: 60, // 1 delivery per day = 60 posts per month (30 days × 2 posts)
+    };
+
+    const limit = limits[actualSubscription] || 2;
+    return Math.max(0, limit - subscriptionInfo.postsUsed);
   };
 
   const getNextPostDate = () => {
@@ -183,6 +192,9 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     }
   };
 
+  // Use actual user subscription for display
+  const actualSubscription = user?.subscription || "free";
+
   const stats = [
     {
       label: "Posts This Month",
@@ -200,14 +212,23 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     },
     {
       label: "Next Post",
-      value: automationStatus === "active" ? "Tomorrow" : "Paused",
+      value:
+        automationStatus === "active"
+          ? actualSubscription === "free"
+            ? "Next Month"
+            : actualSubscription === "standard"
+            ? "Next Week"
+            : "Tomorrow"
+          : "Paused",
       icon: Clock,
       color: "text-violet-600",
       bgColor: "bg-violet-50",
     },
     {
       label: "Plan",
-      value: subscriptionInfo?.subscription || "Free",
+      value:
+        actualSubscription.charAt(0).toUpperCase() +
+        actualSubscription.slice(1),
       icon: Crown,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
@@ -349,16 +370,28 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
             <div className="space-y-2">
               <p className="text-sm text-zinc-600">
                 <span className="font-medium">Frequency:</span>{" "}
-                {scheduleSettings.frequency.charAt(0).toUpperCase() +
-                  scheduleSettings.frequency.slice(1)}
+                {actualSubscription === "free"
+                  ? "Monthly"
+                  : actualSubscription === "standard"
+                  ? "Weekly"
+                  : "Daily"}
               </p>
               <p className="text-sm text-zinc-600">
-                <span className="font-medium">Next post:</span>{" "}
-                {getNextPostDate()}
+                <span className="font-medium">Next delivery:</span>{" "}
+                {automationStatus === "active"
+                  ? actualSubscription === "free"
+                    ? "Next month"
+                    : actualSubscription === "standard"
+                    ? "Next week"
+                    : "Tomorrow"
+                  : "Paused"}
               </p>
               <p className="text-sm text-zinc-600">
                 <span className="font-medium">Time zone:</span>{" "}
                 {scheduleSettings.timezone.replace("_", " ")}
+              </p>
+              <p className="text-xs text-zinc-500 mt-2">
+                Frequency is based on your {actualSubscription} plan
               </p>
             </div>
           </div>
@@ -390,7 +423,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
         <h3 className="text-xl font-semibold text-zinc-900 mb-6">
           Quick Actions
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button
             onClick={generateTestPost}
             disabled={isLoading || getPostsLeft() <= 0}
@@ -404,19 +437,16 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
             <span>Generate Test Post</span>
           </button>
           <button
-            onClick={() => setShowScheduleModal(true)}
-            className="flex items-center space-x-3 p-5 rounded-xl border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-all duration-200 cursor-pointer font-medium"
-          >
-            <Settings className="w-5 h-5" />
-            <span>Edit Schedule</span>
-          </button>
-          <button
             onClick={handleUpgradePlan}
             className="flex items-center space-x-3 p-5 rounded-xl border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-all duration-200 cursor-pointer font-medium"
           >
             <Crown className="w-5 h-5" />
-            <span>Upgrade Plan</span>
+            <span>Manage Plan</span>
           </button>
+        </div>
+        <div className="mt-4 text-sm text-zinc-500 font-medium">
+          Need to change delivery time or timezone? Visit Settings → Email
+          Delivery Settings
         </div>
       </div>
 
@@ -560,110 +590,8 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
           </p>
           <p className="text-sm text-zinc-500">
             Posts will be generated based on your profile and emailed to you
-            according to your schedule.
+            according to your {actualSubscription} plan schedule.
           </p>
-        </div>
-      )}
-
-      {/* Schedule Settings Modal */}
-      {showScheduleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-zinc-900">
-                Edit Schedule Settings
-              </h3>
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="p-2 hover:bg-zinc-100 rounded-lg"
-              >
-                <X className="w-5 h-5 text-zinc-500" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-zinc-900 mb-2">
-                  Post Frequency
-                </label>
-                <select
-                  value={scheduleSettings.frequency}
-                  onChange={(e) =>
-                    setScheduleSettings((prev) => ({
-                      ...prev,
-                      frequency: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                >
-                  {frequencyOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-900 mb-2">
-                  Delivery Time
-                </label>
-                <input
-                  type="time"
-                  value={scheduleSettings.deliveryTime}
-                  onChange={(e) =>
-                    setScheduleSettings((prev) => ({
-                      ...prev,
-                      deliveryTime: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-zinc-900 mb-2">
-                  Timezone
-                </label>
-                <select
-                  value={scheduleSettings.timezone}
-                  onChange={(e) =>
-                    setScheduleSettings((prev) => ({
-                      ...prev,
-                      timezone: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-500"
-                >
-                  {timezoneOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex space-x-4 mt-8">
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleScheduleUpdate}
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-900 font-medium disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                ) : (
-                  "Save Changes"
-                )}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

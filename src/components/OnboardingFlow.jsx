@@ -194,7 +194,13 @@ const OnboardingFlow = ({ onComplete, userId }) => {
             {step === 2 && <GoalsStep data={data} setData={setData} />}
             {step === 3 && <VoiceStep data={data} setData={setData} />}
             {step === 4 && <TopicsStep data={data} setData={setData} />}
-            {step === 5 && <FrequencyStep data={data} setData={setData} />}
+            {step === 5 && (
+              <FrequencyStep
+                data={data}
+                setData={setData}
+                userSubscription={user?.subscription || "free"}
+              />
+            )}
             {step === 6 && <ComplianceStep data={data} setData={setData} />}
           </div>
 

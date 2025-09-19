@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   Bell,
   CheckCircle,
   Clock,
@@ -6,6 +7,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  Trash2,
   Upload,
   User,
 } from "lucide-react";
@@ -16,6 +18,9 @@ const SettingsTab = ({ user, onRefresh }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [error, setError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const [profileData, setProfileData] = useState({
     linkedinUrl: user?.linkedinUrl || "",
@@ -90,19 +95,96 @@ const SettingsTab = ({ user, onRefresh }) => {
     setSaveStatus(null);
 
     try {
-      await profileService.updateAutomationSettings(user?.uid || user?.id, {
-        status: user?.automationStatus || "active",
-        frequency: scheduleSettings.frequency,
-        emailSettings: emailSettings,
+      // Only save the holiday settings since frequency is determined by plan
+      await profileService.updateProfile(user?.uid || user?.id, {
+        pauseOnHolidays: scheduleSettings.pauseOnHolidays,
       });
-      setSaveStatus("Schedule settings updated successfully!");
+      setSaveStatus("Holiday settings updated successfully!");
 
       if (onRefresh) {
         await onRefresh();
       }
     } catch (error) {
-      console.error("Error updating schedule settings:", error);
-      setError("Failed to update schedule settings. Please try again.");
+      console.error("Error updating holiday settings:", error);
+      setError("Failed to update holiday settings. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDocumentUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setError(null);
+    setSaveStatus(null);
+
+    try {
+      // Process documents and update profile with new context (replacing existing)
+      const result = await profileService.processDocuments(files);
+
+      // Update user profile with new document context
+      await profileService.updateProfile(user?.uid || user?.id, {
+        documentContext: result.documentContext,
+      });
+
+      setSaveStatus(
+        `Documents uploaded successfully! Processed ${result.processedFiles} files with ${result.totalCharacters} characters of context.`
+      );
+
+      // Refresh user data to show updated document context
+      if (onRefresh) {
+        await onRefresh();
+      }
+
+      // Clear the file input
+      event.target.value = "";
+    } catch (error) {
+      console.error("Error uploading documents:", error);
+      setError("Failed to upload documents. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Update subscription to free plan
+      await profileService.upgradeSubscription(user?.uid || user?.id, "free");
+      setSaveStatus(
+        "Subscription cancelled successfully. You're now on the free plan."
+      );
+      setShowCancelModal(false);
+
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      setError("Failed to cancel subscription. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // This would typically call a delete account API endpoint
+      // For now, we'll just show a message
+      setError(
+        "Account deletion is not implemented yet. Please contact support."
+      );
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      setError("Failed to delete account. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -345,22 +427,17 @@ const SettingsTab = ({ user, onRefresh }) => {
             <label className="block text-sm font-semibold text-zinc-700 mb-3">
               Post Frequency
             </label>
-            <select
-              value={scheduleSettings.frequency}
-              onChange={(e) =>
-                setScheduleSettings({
-                  ...scheduleSettings,
-                  frequency: e.target.value,
-                })
-              }
-              className="w-full px-4 py-3 border border-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition-all duration-200 bg-white font-medium text-zinc-900"
-            >
-              <option value="daily">Daily</option>
-              <option value="3-times-week">3 times a week</option>
-              <option value="weekly">Weekly</option>
-              <option value="bi-weekly">Bi-weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
+            <div className="w-full px-4 py-3 border border-zinc-300 rounded-xl bg-zinc-50 font-medium text-zinc-600">
+              {user?.subscription === "free"
+                ? "Monthly (1 delivery per month)"
+                : user?.subscription === "standard"
+                ? "Weekly (1 delivery per week)"
+                : "Daily (1 delivery per day)"}
+            </div>
+            <p className="text-xs text-zinc-500 mt-2">
+              Frequency is determined by your {user?.subscription || "free"}{" "}
+              plan. Upgrade to change frequency.
+            </p>
           </div>
 
           <div className="space-y-3">
@@ -387,12 +464,19 @@ const SettingsTab = ({ user, onRefresh }) => {
               Current Plan Limits
             </h5>
             <p className="text-sm text-zinc-600">
-              <span className="font-medium">Max posts per month:</span>{" "}
-              {scheduleSettings.maxPostsPerMonth}
+              <span className="font-medium">Deliveries per month:</span>{" "}
+              {user?.subscription === "free"
+                ? "1 delivery (2 posts total)"
+                : user?.subscription === "standard"
+                ? "4 deliveries (8 posts total)"
+                : "30 deliveries (60 posts total)"}
             </p>
             <p className="text-sm text-zinc-600 mt-1">
               <span className="font-medium">Current plan:</span>{" "}
-              {user?.subscription || "Free"}
+              <span className="capitalize">{user?.subscription || "Free"}</span>
+            </p>
+            <p className="text-xs text-zinc-500 mt-2">
+              Each delivery includes 1 short post + 1 long post
             </p>
           </div>
 
@@ -402,7 +486,7 @@ const SettingsTab = ({ user, onRefresh }) => {
             className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-zinc-800 to-zinc-900 text-white rounded-xl hover:from-zinc-900 hover:to-black transition-all duration-200 cursor-pointer font-medium disabled:opacity-50"
           >
             {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <span>Save Schedule Settings</span>
+            <span>Save Holiday Settings</span>
           </button>
         </div>
       </div>
@@ -423,15 +507,28 @@ const SettingsTab = ({ user, onRefresh }) => {
             </p>
             <p className="text-sm text-zinc-600 font-medium mt-1">
               {user?.subscription === "free"
-                ? "5 automated posts per month"
+                ? "1 delivery per month (2 posts total)"
                 : user?.subscription === "standard"
-                ? "25 automated posts per month"
-                : "Unlimited automated posts"}
+                ? "1 delivery per week (8 posts per month)"
+                : "1 delivery per day (60 posts per month)"}
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              Each delivery includes 1 short + 1 long post
             </p>
           </div>
-          <button className="px-6 py-3 bg-gradient-to-r from-zinc-800 to-zinc-900 text-white rounded-xl hover:from-zinc-900 hover:to-black transition-all duration-200 cursor-pointer font-medium">
-            {user?.subscription === "free" ? "Upgrade Plan" : "Manage Billing"}
-          </button>
+          <div className="flex space-x-3">
+            {user?.subscription !== "free" && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-all duration-200 cursor-pointer font-medium border border-red-200"
+              >
+                Cancel Subscription
+              </button>
+            )}
+            <button className="px-6 py-3 bg-gradient-to-r from-zinc-800 to-zinc-900 text-white rounded-xl hover:from-zinc-900 hover:to-black transition-all duration-200 cursor-pointer font-medium">
+              {user?.subscription === "free" ? "Upgrade Plan" : "Change Plan"}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -449,22 +546,40 @@ const SettingsTab = ({ user, onRefresh }) => {
         <div className="space-y-4">
           <p className="text-sm text-zinc-600">
             Upload documents to provide additional context for AI content
-            generation. These help create more personalized and relevant posts.
+            generation. New uploads will replace existing documents.
           </p>
 
           <div className="border-2 border-dashed border-zinc-300 rounded-xl p-8 text-center hover:border-zinc-400 transition-all duration-200 cursor-pointer hover:bg-zinc-50/50">
             <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Upload className="w-8 h-8 text-zinc-400" />
+              {isUploading ? (
+                <Loader2 className="w-8 h-8 text-zinc-400 animate-spin" />
+              ) : (
+                <Upload className="w-8 h-8 text-zinc-400" />
+              )}
             </div>
             <p className="text-zinc-700 font-medium mb-2">
-              Upload new documents
+              {isUploading ? "Uploading documents..." : "Upload new documents"}
             </p>
-            <p className="text-sm text-zinc-500 font-medium">
+            <p className="text-sm text-zinc-500 font-medium mb-4">
               PDF, DOCX, TXT up to 10MB each
             </p>
-            <button className="mt-4 px-6 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg transition-colors font-medium">
+            <input
+              type="file"
+              multiple
+              accept=".pdf,.txt,.docx"
+              onChange={handleDocumentUpload}
+              disabled={isUploading}
+              className="hidden"
+              id="document-upload"
+            />
+            <label
+              htmlFor="document-upload"
+              className={`inline-block px-6 py-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg transition-colors font-medium cursor-pointer ${
+                isUploading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
               Choose Files
-            </button>
+            </label>
           </div>
 
           {user?.documentContext && (
@@ -537,20 +652,93 @@ const SettingsTab = ({ user, onRefresh }) => {
         </h4>
 
         <div className="space-y-3">
-          <button className="w-full px-4 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl transition-colors text-left font-medium">
-            Export My Data
-          </button>
-          <button className="w-full px-4 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-xl transition-colors text-left font-medium">
-            Download Content History
-          </button>
-          <button className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-left font-medium border border-red-200">
-            Pause All Automation
-          </button>
-          <button className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-left font-medium border border-red-200">
-            Delete Account
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-left font-medium border border-red-200 flex items-center space-x-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete Account</span>
           </button>
         </div>
       </div>
+
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-amber-500" />
+              <h3 className="text-xl font-semibold text-zinc-900">
+                Cancel Subscription
+              </h3>
+            </div>
+
+            <p className="text-zinc-600 mb-6">
+              Are you sure you want to cancel your subscription? You'll be moved
+              to the free plan and lose access to premium features.
+            </p>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 font-medium"
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : (
+                  "Cancel Subscription"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-500" />
+              <h3 className="text-xl font-semibold text-zinc-900">
+                Delete Account
+              </h3>
+            </div>
+
+            <p className="text-zinc-600 mb-6">
+              This action cannot be undone. All your data, posts, and settings
+              will be permanently deleted.
+            </p>
+
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                ) : (
+                  "Delete Account"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

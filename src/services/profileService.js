@@ -47,7 +47,11 @@ export const profileService = {
   // Process documents to extract text
   async processDocuments(documents) {
     if (!documents || documents.length === 0) {
-      return { documentContext: '' };
+      return { 
+        documentContext: '',
+        processedFiles: 0,
+        totalCharacters: 0
+      };
     }
 
     try {
@@ -76,10 +80,15 @@ export const profileService = {
       
       const result = await response.json();
       console.log('Document processing result:', result);
-      return result;
+      return {
+        documentContext: result.documentContext || '',
+        processedFiles: result.processedFiles || documents.length,
+        totalCharacters: result.totalCharacters || (result.documentContext || '').length,
+        message: result.message || 'Documents processed successfully'
+      };
     } catch (error) {
       console.error('Error processing documents:', error);
-      return { documentContext: '' };
+      throw new Error(`Failed to process documents: ${error.message}`);
     }
   },
 
@@ -449,9 +458,63 @@ export const profileService = {
       await updateDoc(doc(db, 'profiles', userId), updateData);
       
       console.log('Subscription upgraded successfully to:', newPlan);
-      return { message: 'Subscription upgraded successfully' };
+      return { message: 'Subscription updated successfully' };
     } catch (error) {
       console.error('Error upgrading subscription:', error);
+      throw error;
+    }
+  },
+
+  // Cancel subscription (downgrade to free)
+  async cancelSubscription(userId) {
+    try {
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId provided');
+      }
+
+      const updateData = {
+        subscription: 'free',
+        subscriptionCancelledAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await updateDoc(doc(db, 'profiles', userId), updateData);
+      
+      console.log('Subscription cancelled successfully for userId:', userId);
+      return { message: 'Subscription cancelled successfully' };
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      throw error;
+    }
+  },
+
+  // Delete user account and all associated data
+  async deleteAccount(userId) {
+    try {
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId provided');
+      }
+
+      // This would typically involve:
+      // 1. Delete user profile from Firestore
+      // 2. Delete all user posts
+      // 3. Cancel any active subscriptions
+      // 4. Delete user authentication account
+      // 5. Remove any uploaded documents/files
+      
+      // For now, just mark the account as deleted
+      const updateData = {
+        accountDeleted: true,
+        deletedAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await updateDoc(doc(db, 'profiles', userId), updateData);
+      
+      console.log('Account marked for deletion:', userId);
+      return { message: 'Account deletion initiated. Please contact support to complete the process.' };
+    } catch (error) {
+      console.error('Error deleting account:', error);
       throw error;
     }
   }
