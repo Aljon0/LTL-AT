@@ -58,7 +58,7 @@ export class AuthService {
 
   async getUserProfile(uid, idToken) {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/user/${uid}`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/user/${uid}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },

@@ -2,7 +2,6 @@ import { onAuthStateChanged } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import AdminPanel from "./components/AdminPanel";
 import Dashboard from "./components/Dashboard";
-import LinkedInCallback from "./components/LinkedInCallback";
 import LoginPage from "./components/LoginPage";
 import Navigation from "./components/Navigation";
 import OnboardingFlow from "./components/OnboardingFlow";
@@ -42,10 +41,6 @@ const App = () => {
 
   const authService = AuthService.getInstance();
 
-  // Check if we're on the LinkedIn callback page
-  const isLinkedInCallback =
-    window.location.pathname === "/auth/linkedin/callback";
-
   // Function to check onboarding status and load user profile
   const loadUserProfile = async (userId) => {
     try {
@@ -74,25 +69,6 @@ const App = () => {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
-    // Check for LinkedIn auth data in sessionStorage
-    const linkedInAuthData = sessionStorage.getItem("linkedin_auth_result");
-    if (linkedInAuthData) {
-      try {
-        const userData = JSON.parse(linkedInAuthData);
-        sessionStorage.removeItem("linkedin_auth_result");
-        handleLogin(userData);
-        return;
-      } catch (e) {
-        console.error("Error parsing LinkedIn auth data:", e);
-      }
-    }
-
-    // Skip auth listener if we're on LinkedIn callback page
-    if (isLinkedInCallback) {
-      setIsLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setIsLoading(true);
 
@@ -144,7 +120,7 @@ const App = () => {
     });
 
     return () => unsubscribe();
-  }, [authService, isLinkedInCallback]);
+  }, [authService]);
 
   const handleLogin = async (userData) => {
     setUser(userData);
@@ -234,11 +210,6 @@ const App = () => {
     setSelectedPlan(null);
     setCurrentView("dashboard");
   };
-
-  // Handle LinkedIn callback
-  if (isLinkedInCallback) {
-    return <LinkedInCallback />;
-  }
 
   // Show loading screen while checking auth state
   if (isLoading) {
