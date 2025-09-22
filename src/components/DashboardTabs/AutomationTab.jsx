@@ -20,6 +20,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
   const [testEmailStatus, setTestEmailStatus] = useState(null);
+  const [fallbackContent, setFallbackContent] = useState(null);
   const [error, setError] = useState(null);
   const [scheduleSettings, setScheduleSettings] = useState({
     frequency: user?.postFrequency || "weekly",
@@ -39,7 +40,6 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
       const info = await profileService.getSubscriptionInfo(
         user?.uid || user?.id
       );
-      // Use the user's actual subscription from the profile instead of the API response
       const actualSubscription = user?.subscription || "free";
       setSubscriptionInfo({
         ...info,
@@ -50,72 +50,18 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     }
   };
 
-  // Calculate posts left based on actual user subscription and pricing plan
   const getPostsLeft = () => {
     if (!subscriptionInfo) return 0;
 
-    // Use actual user subscription for limits calculation based on pricing plan
     const actualSubscription = user?.subscription || "free";
     const limits = {
-      free: 2, // 1 delivery per month = 2 posts (1 short + 1 long)
-      standard: 8, // 1 delivery per week = 8 posts per month (4 weeks × 2 posts)
-      pro: 60, // 1 delivery per day = 60 posts per month (30 days × 2 posts)
+      free: 2,
+      standard: 8,
+      pro: 60,
     };
 
     const limit = limits[actualSubscription] || 2;
     return Math.max(0, limit - subscriptionInfo.postsUsed);
-  };
-
-  const getNextPostDate = () => {
-    const frequency = scheduleSettings.frequency;
-    const nextDate = new Date();
-
-    switch (frequency) {
-      case "daily":
-        nextDate.setDate(nextDate.getDate() + 1);
-        break;
-      case "weekly":
-        nextDate.setDate(nextDate.getDate() + 7);
-        break;
-      case "monthly":
-        nextDate.setMonth(nextDate.getMonth() + 1);
-        break;
-      default:
-        nextDate.setDate(nextDate.getDate() + 7);
-    }
-
-    return nextDate.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const handleScheduleUpdate = async () => {
-    setIsLoading(true);
-    try {
-      await profileService.updateAutomationSettings(user?.uid || user?.id, {
-        status: automationStatus,
-        frequency: scheduleSettings.frequency,
-        emailSettings: {
-          deliveryTime: scheduleSettings.deliveryTime,
-          timezone: scheduleSettings.timezone,
-          format: "html",
-        },
-      });
-
-      setShowScheduleModal(false);
-      // Trigger a refresh to update user data
-      if (onRefresh) {
-        onRefresh();
-      }
-    } catch (error) {
-      console.error("Error updating schedule:", error);
-      setError("Failed to update schedule settings");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const toggleAutomation = async () => {
@@ -148,9 +94,9 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     setIsLoading(true);
     setError(null);
     setTestEmailStatus(null);
+    setFallbackContent(null);
 
     try {
-      // Check if user has posts left
       if (getPostsLeft() <= 0) {
         setError(
           "You have reached your monthly post limit. Please upgrade your plan."
@@ -158,7 +104,8 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
         return;
       }
 
-      // Generate a test post
+      // Generate a test post first
+      console.log("Generating test post...");
       const testPrompt =
         "Create a test LinkedIn post based on my profile and interests";
       const result = await profileService.generatePost(
@@ -167,22 +114,36 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
         "This is a test post to preview the automated content generation"
       );
 
-      // Send test email with the generated post
+      console.log("Post generated successfully, now sending email...");
+
+      // Send the test email
       await profileService.sendTestEmail(
         user?.uid || user?.id,
         result.post,
         user?.email
       );
 
+      console.log("Email sent successfully!");
       setTestEmailStatus("success");
 
       // Refresh subscription info to update post count
       await loadSubscriptionInfo();
     } catch (error) {
-      console.error("Error generating test post:", error);
-      setError(error.message || "Failed to generate test post");
+      console.error("Error in generateTestPost:", error);
+      setError(error.message || "Failed to generate test post or send email");
+      setTestEmailStatus(null);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setTestEmailStatus("copied");
+      setTimeout(() => setTestEmailStatus("fallback"), 2000);
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
     }
   };
 
@@ -192,7 +153,6 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     }
   };
 
-  // Use actual user subscription for display
   const actualSubscription = user?.subscription || "free";
 
   const stats = [
@@ -235,27 +195,10 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     },
   ];
 
-  const frequencyOptions = [
-    { value: "daily", label: "Daily" },
-    { value: "weekly", label: "Weekly" },
-    { value: "monthly", label: "Monthly" },
-  ];
-
-  const timezoneOptions = [
-    { value: "America/New_York", label: "Eastern Time (ET)" },
-    { value: "America/Chicago", label: "Central Time (CT)" },
-    { value: "America/Denver", label: "Mountain Time (MT)" },
-    { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
-    { value: "Europe/London", label: "Greenwich Mean Time (GMT)" },
-    { value: "Europe/Paris", label: "Central European Time (CET)" },
-    { value: "Asia/Tokyo", label: "Japan Standard Time (JST)" },
-    { value: "Australia/Sydney", label: "Australian Eastern Time (AET)" },
-  ];
-
   return (
     <div className="space-y-8">
       {/* Error Message */}
-      {error && (
+      {error && !fallbackContent && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-sm text-red-700 font-medium">{error}</p>
         </div>

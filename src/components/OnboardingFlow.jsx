@@ -9,7 +9,7 @@ import LinkedInStep from "./OnboardingSteps/LinkedInStep";
 import TopicsStep from "./OnboardingSteps/TopicsStep";
 import VoiceStep from "./OnboardingSteps/VoiceStep";
 
-const OnboardingFlow = ({ onComplete, userId }) => {
+const OnboardingFlow = ({ onComplete, userId, user }) => {
   const [step, setStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);

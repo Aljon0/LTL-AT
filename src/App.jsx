@@ -247,6 +247,7 @@ const App = () => {
           <OnboardingFlow
             onComplete={handleOnboardingComplete}
             userId={user?.uid || user?.id}
+            user={combinedUserData}
           />
         )}
         {currentView === "pricing" && (

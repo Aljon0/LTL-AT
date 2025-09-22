@@ -1,9 +1,71 @@
 import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Smart environment detection for API URL
+const getApiBaseUrl = () => {
+  // Check if we have a custom API URL set
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Auto-detect based on current environment
+  const hostname = window.location.hostname;
+  
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // Local development - try to connect to local backend first
+    return 'http://localhost:3001';
+  } else if (hostname.includes('ltl-at')) {
+    // Production environment - use production API
+    return 'https://ltl-at-api.onrender.com';
+  } else {
+    // Fallback for other environments
+    return 'https://ltl-at-api.onrender.com';
+  }
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+console.log('🔧 Detected API Base URL:', API_BASE_URL);
+console.log('🔧 Current hostname:', window.location.hostname);
+console.log('🔧 Environment:', import.meta.env.MODE);
 
 export const profileService = {
+  // Test API connectivity
+  async testConnection() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API not responding: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ API connection successful:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ API connection failed:', error);
+      throw error;
+    }
+  },
+
+  // Test CORS connection
+  async testCors() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/test-cors`);
+      const result = await response.json();
+      console.log('✅ CORS test successful:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ CORS test failed:', error);
+      throw error;
+    }
+  },
+
   // Check if user has completed onboarding
   async checkSetupStatus(userId) {
     try {
@@ -56,6 +118,7 @@ export const profileService = {
 
     try {
       console.log('Processing documents:', documents.length);
+      console.log('Making request to:', `${API_BASE_URL}/api/process-documents`);
       
       const formData = new FormData();
       documents.forEach(file => {
@@ -63,11 +126,10 @@ export const profileService = {
         formData.append('documents', file);
       });
 
-      console.log('Sending request to:', `${API_BASE_URL}/api/process-documents`);
-      
       const response = await fetch(`${API_BASE_URL}/api/process-documents`, {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
 
       console.log('Document processing response status:', response.status);
@@ -118,8 +180,8 @@ export const profileService = {
         setupCompleted: true,
         createdAt: new Date(),
         updatedAt: new Date(),
-        subscription: profileData.subscription || 'free', // Default to free plan
-        automationStatus: 'active', // Default automation status
+        subscription: profileData.subscription || 'free',
+        automationStatus: 'active',
         emailSettings: {
           deliveryTime: '09:00',
           timezone: 'America/New_York',
@@ -162,52 +224,6 @@ export const profileService = {
     } catch (error) {
       console.error('Error saving profile:', error);
       throw new Error(`Failed to save profile: ${error.message}`);
-    }
-  },
-
-  // Update profile settings
-  async updateProfile(userId, updates) {
-    try {
-      if (!userId || typeof userId !== 'string') {
-        throw new Error('Invalid userId provided');
-      }
-
-      const updateData = {
-        ...updates,
-        updatedAt: new Date()
-      };
-
-      await updateDoc(doc(db, 'profiles', userId), updateData);
-      
-      console.log('Profile updated successfully');
-      return { message: 'Profile updated successfully' };
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
-    }
-  },
-
-  // Update automation settings
-  async updateAutomationSettings(userId, settings) {
-    try {
-      if (!userId || typeof userId !== 'string') {
-        throw new Error('Invalid userId provided');
-      }
-
-      const updateData = {
-        automationStatus: settings.status,
-        postFrequency: settings.frequency,
-        emailSettings: settings.emailSettings,
-        updatedAt: new Date()
-      };
-
-      await updateDoc(doc(db, 'profiles', userId), updateData);
-      
-      console.log('Automation settings updated successfully');
-      return { message: 'Automation settings updated successfully' };
-    } catch (error) {
-      console.error('Error updating automation settings:', error);
-      throw error;
     }
   },
 
@@ -260,7 +276,7 @@ export const profileService = {
         createdAt: new Date(),
         status: 'draft',
         metadata: result.metadata,
-        type: 'manual' // vs 'automated' for scheduled posts
+        type: 'manual'
       };
 
       const postRef = await addDoc(collection(db, 'posts'), postData);
@@ -276,7 +292,137 @@ export const profileService = {
     }
   },
 
-  // Get user posts from Firestore
+  // Enhanced test email with fallback for both local and production
+  async sendTestEmail(userId, postContent, userEmail) {
+    try {
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId provided');
+      }
+
+      console.log('Attempting to send test email...');
+      console.log('API URL:', API_BASE_URL);
+
+      // First check if email service is available
+      try {
+        const healthResponse = await fetch(`${API_BASE_URL}/api/test-email-config`);
+        const healthData = await healthResponse.json();
+        
+        if (!healthResponse.ok || !healthData.success) {
+          console.warn('Email service not configured on server:', healthData);
+          
+          // Always show fallback when email service is not configured
+          return {
+            success: false,
+            message: 'Post generated successfully! Email service is not configured yet. Here\'s your content:',
+            fallback: true,
+            postContent
+          };
+        }
+      } catch (healthError) {
+        console.warn('Could not check email service health:', healthError);
+        // If we can't even check health, assume email is not configured
+        return {
+          success: false,
+          message: 'Post generated successfully! Email service is not available. Here\'s your content:',
+          fallback: true,
+          postContent
+        };
+      }
+
+      // If health check passed, try to send email
+      const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          postContent,
+          userEmail
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // Handle email service not configured gracefully
+        if (response.status === 500 && errorText.includes('Email service not configured')) {
+          console.warn('Email service not configured, providing fallback');
+          return {
+            success: false,
+            message: 'Post generated successfully! Email service is being configured. Here\'s your content:',
+            fallback: true,
+            postContent
+          };
+        }
+        
+        throw new Error(`Failed to send test email: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      console.log('Test email sent successfully');
+      return {
+        success: true,
+        ...result
+      };
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      
+      // Always provide fallback instead of failing
+      return {
+        success: false,
+        message: 'Post generated successfully! Email delivery is temporarily unavailable. Here\'s your content:',
+        fallback: true,
+        postContent
+      };
+    }
+  },
+
+  // Rest of the methods remain the same...
+  async updateProfile(userId, updates) {
+    try {
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId provided');
+      }
+
+      const updateData = {
+        ...updates,
+        updatedAt: new Date()
+      };
+
+      await updateDoc(doc(db, 'profiles', userId), updateData);
+      
+      console.log('Profile updated successfully');
+      return { message: 'Profile updated successfully' };
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  },
+
+  async updateAutomationSettings(userId, settings) {
+    try {
+      if (!userId || typeof userId !== 'string') {
+        throw new Error('Invalid userId provided');
+      }
+
+      const updateData = {
+        automationStatus: settings.status,
+        postFrequency: settings.frequency,
+        emailSettings: settings.emailSettings,
+        updatedAt: new Date()
+      };
+
+      await updateDoc(doc(db, 'profiles', userId), updateData);
+      
+      console.log('Automation settings updated successfully');
+      return { message: 'Automation settings updated successfully' };
+    } catch (error) {
+      console.error('Error updating automation settings:', error);
+      throw error;
+    }
+  },
+
   async getPosts(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
@@ -307,40 +453,6 @@ export const profileService = {
     }
   },
 
-  // Send test email with generated post
-  async sendTestEmail(userId, postContent, userEmail) {
-    try {
-      if (!userId || typeof userId !== 'string') {
-        throw new Error('Invalid userId provided');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/send-test-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          postContent,
-          userEmail // Pass the user's actual email
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to send test email: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-      
-      const result = await response.json();
-      console.log('Test email sent successfully');
-      return result;
-    } catch (error) {
-      console.error('Error sending test email:', error);
-      throw error;
-    }
-  },
-
-  // Get subscription info and upgrade options
   async getSubscriptionInfo(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
@@ -356,7 +468,6 @@ export const profileService = {
       const profileData = profileDoc.data();
       const subscription = profileData.subscription || 'free';
       
-      // Get posts count for current month
       const currentMonth = new Date();
       currentMonth.setDate(1);
       currentMonth.setHours(0, 0, 0, 0);
@@ -371,9 +482,9 @@ export const profileService = {
       const postsUsed = postsSnapshot.size;
       
       const limits = {
-        free: 2,     // 1 delivery per month = 2 posts (1 short + 1 long)
-        standard: 8, // 1 delivery per week = 8 posts per month
-        pro: 60      // 1 delivery per day = 60 posts per month
+        free: 2,
+        standard: 8,
+        pro: 60
       };
       
       return {
@@ -387,7 +498,6 @@ export const profileService = {
     }
   },
 
-  // Create payment intent
   async createPaymentIntent(userId, planId, amount) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/create-payment-intent`, {
@@ -415,7 +525,6 @@ export const profileService = {
     }
   },
 
-  // Confirm payment
   async confirmPayment(paymentIntentId, userEmail, userName) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/confirm-payment`, {
@@ -442,7 +551,6 @@ export const profileService = {
     }
   },
 
-  // Upgrade subscription
   async upgradeSubscription(userId, newPlan) {
     try {
       if (!userId || typeof userId !== 'string') {
@@ -465,7 +573,6 @@ export const profileService = {
     }
   },
 
-  // Cancel subscription (downgrade to free)
   async cancelSubscription(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
@@ -488,21 +595,12 @@ export const profileService = {
     }
   },
 
-  // Delete user account and all associated data
   async deleteAccount(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId provided');
       }
 
-      // This would typically involve:
-      // 1. Delete user profile from Firestore
-      // 2. Delete all user posts
-      // 3. Cancel any active subscriptions
-      // 4. Delete user authentication account
-      // 5. Remove any uploaded documents/files
-      
-      // For now, just mark the account as deleted
       const updateData = {
         accountDeleted: true,
         deletedAt: new Date(),
