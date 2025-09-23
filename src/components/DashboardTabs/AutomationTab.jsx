@@ -1,27 +1,12 @@
-import {
-  Calendar,
-  CheckCircle,
-  Clock,
-  Crown,
-  FileText,
-  Loader2,
-  Mail,
-  Pause,
-  Play,
-  Send,
-  Target,
-  Zap,
-} from "lucide-react";
+import { Calendar, Crown, FileText, Mail, Target, Zap } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { profileService } from "../../services/profileService";
+import EnhancedPostGenerator from "./EnhancedPostGenerator";
+import TrendsDashboard from "./TrendsDashboard";
 
 const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
-  const [automationStatus, setAutomationStatus] = useState("active");
-  const [isLoading, setIsLoading] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
-  const [testEmailStatus, setTestEmailStatus] = useState(null);
-  const [fallbackContent, setFallbackContent] = useState(null);
-  const [error, setError] = useState(null);
+  const [includeTrends, setIncludeTrends] = useState(true);
   const [scheduleSettings, setScheduleSettings] = useState({
     frequency: user?.postFrequency || "weekly",
     deliveryTime: user?.emailSettings?.deliveryTime || "09:00",
@@ -64,92 +49,19 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
     return Math.max(0, limit - subscriptionInfo.postsUsed);
   };
 
-  const toggleAutomation = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const newStatus = automationStatus === "active" ? "paused" : "active";
-
-      await profileService.updateAutomationSettings(user?.uid || user?.id, {
-        status: newStatus,
-        frequency: scheduleSettings.frequency,
-        emailSettings: {
-          deliveryTime: scheduleSettings.deliveryTime,
-          timezone: scheduleSettings.timezone,
-          format: "html",
-        },
-      });
-
-      setAutomationStatus(newStatus);
-    } catch (error) {
-      console.error("Error toggling automation:", error);
-      setError("Failed to update automation status");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const generateTestPost = async () => {
-    setIsLoading(true);
-    setError(null);
-    setTestEmailStatus(null);
-    setFallbackContent(null);
-
-    try {
-      if (getPostsLeft() <= 0) {
-        setError(
-          "You have reached your monthly post limit. Please upgrade your plan."
-        );
-        return;
-      }
-
-      // Generate a test post first
-      console.log("Generating test post...");
-      const testPrompt =
-        "Create a test LinkedIn post based on my profile and interests";
-      const result = await profileService.generatePost(
-        user?.uid || user?.id,
-        testPrompt,
-        "This is a test post to preview the automated content generation"
-      );
-
-      console.log("Post generated successfully, now sending email...");
-
-      // Send the test email
-      await profileService.sendTestEmail(
-        user?.uid || user?.id,
-        result.post,
-        user?.email
-      );
-
-      console.log("Email sent successfully!");
-      setTestEmailStatus("success");
-
-      // Refresh subscription info to update post count
-      await loadSubscriptionInfo();
-    } catch (error) {
-      console.error("Error in generateTestPost:", error);
-      setError(error.message || "Failed to generate test post or send email");
-      setTestEmailStatus(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setTestEmailStatus("copied");
-      setTimeout(() => setTestEmailStatus("fallback"), 2000);
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
-
   const handleUpgradePlan = () => {
     if (setCurrentView) {
       setCurrentView("pricing");
+    }
+  };
+
+  const handlePostGenerated = (result) => {
+    // Refresh subscription info after post generation
+    loadSubscriptionInfo();
+
+    // Refresh posts if callback provided
+    if (onRefresh) {
+      onRefresh();
     }
   };
 
@@ -171,20 +83,6 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
       bgColor: "bg-emerald-50",
     },
     {
-      label: "Next Post",
-      value:
-        automationStatus === "active"
-          ? actualSubscription === "free"
-            ? "Next Month"
-            : actualSubscription === "standard"
-            ? "Next Week"
-            : "Tomorrow"
-          : "Paused",
-      icon: Clock,
-      color: "text-violet-600",
-      bgColor: "bg-violet-50",
-    },
-    {
       label: "Plan",
       value:
         actualSubscription.charAt(0).toUpperCase() +
@@ -197,27 +95,8 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
 
   return (
     <div className="space-y-8">
-      {/* Error Message */}
-      {error && !fallbackContent && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm text-red-700 font-medium">{error}</p>
-        </div>
-      )}
-
-      {/* Success Message */}
-      {testEmailStatus === "success" && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-          <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-emerald-600" />
-            <p className="text-sm text-emerald-700 font-medium">
-              Test post generated and sent to your email successfully!
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
           <div
             key={index}
@@ -242,68 +121,31 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
         ))}
       </div>
 
-      {/* Automation Control */}
+      {/* Trends Dashboard Component */}
+      <TrendsDashboard
+        user={user}
+        includeTrends={includeTrends}
+        setIncludeTrends={setIncludeTrends}
+      />
+
+      {/* Automation Schedule Info */}
       <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-zinc-200/60 shadow-xl shadow-zinc-200/50">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-zinc-100 rounded-xl">
-              <Zap className="w-5 h-5 text-zinc-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-zinc-900">
-                Content Automation
-              </h3>
-              <p className="text-sm text-zinc-600 font-medium">
-                AI-powered LinkedIn post generation and email delivery
-              </p>
-            </div>
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-2 bg-zinc-100 rounded-xl">
+            <Zap className="w-5 h-5 text-zinc-600" />
           </div>
-
-          <div className="flex items-center space-x-3">
-            <div
-              className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                automationStatus === "active"
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-amber-50 text-amber-700 border border-amber-200"
-              }`}
-            >
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  automationStatus === "active"
-                    ? "bg-emerald-500"
-                    : "bg-amber-500"
-                }`}
-              ></div>
-              <span className="capitalize">{automationStatus}</span>
-            </div>
-
-            <button
-              onClick={toggleAutomation}
-              disabled={isLoading}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 ${
-                automationStatus === "active"
-                  ? "bg-amber-100 hover:bg-amber-200 text-amber-700"
-                  : "bg-emerald-100 hover:bg-emerald-200 text-emerald-700"
-              }`}
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : automationStatus === "active" ? (
-                <>
-                  <Pause className="w-4 h-4" />
-                  <span>Pause</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  <span>Resume</span>
-                </>
-              )}
-            </button>
+          <div>
+            <h3 className="text-xl font-semibold text-zinc-900">
+              Automation Schedule
+            </h3>
+            <p className="text-sm text-zinc-600 font-medium">
+              {includeTrends
+                ? "AI-powered LinkedIn posts with real-time trend integration"
+                : "AI-powered LinkedIn post generation and email delivery"}
+            </p>
           </div>
         </div>
 
-        {/* Automation Schedule */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-5 bg-zinc-50 rounded-xl border border-zinc-200">
             <div className="flex items-center space-x-3 mb-3">
@@ -320,21 +162,11 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
                   : "Daily"}
               </p>
               <p className="text-sm text-zinc-600">
-                <span className="font-medium">Next delivery:</span>{" "}
-                {automationStatus === "active"
-                  ? actualSubscription === "free"
-                    ? "Next month"
-                    : actualSubscription === "standard"
-                    ? "Next week"
-                    : "Tomorrow"
-                  : "Paused"}
-              </p>
-              <p className="text-sm text-zinc-600">
-                <span className="font-medium">Time zone:</span>{" "}
-                {scheduleSettings.timezone.replace("_", " ")}
+                <span className="font-medium">Trends integration:</span>{" "}
+                {includeTrends ? "Enabled" : "Disabled"}
               </p>
               <p className="text-xs text-zinc-500 mt-2">
-                Frequency is based on your {actualSubscription} plan
+                Frequency based on your {actualSubscription} plan
               </p>
             </div>
           </div>
@@ -361,37 +193,12 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-zinc-200/60 shadow-xl shadow-zinc-200/50">
-        <h3 className="text-xl font-semibold text-zinc-900 mb-6">
-          Quick Actions
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <button
-            onClick={generateTestPost}
-            disabled={isLoading || getPostsLeft() <= 0}
-            className="flex items-center space-x-3 p-5 rounded-xl bg-gradient-to-r from-zinc-800 to-zinc-900 text-white hover:from-zinc-900 hover:to-black transition-all duration-200 shadow-lg hover:shadow-xl cursor-pointer transform hover:-translate-y-0.5 font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-            <span>Generate Test Post</span>
-          </button>
-          <button
-            onClick={handleUpgradePlan}
-            className="flex items-center space-x-3 p-5 rounded-xl border border-zinc-300 text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 transition-all duration-200 cursor-pointer font-medium"
-          >
-            <Crown className="w-5 h-5" />
-            <span>Manage Plan</span>
-          </button>
-        </div>
-        <div className="mt-4 text-sm text-zinc-500 font-medium">
-          Need to change delivery time or timezone? Visit Settings → Email
-          Delivery Settings
-        </div>
-      </div>
+      {/* Enhanced Post Generator Component */}
+      <EnhancedPostGenerator
+        user={user}
+        includeTrends={includeTrends}
+        onPostGenerated={handlePostGenerated}
+      />
 
       {/* Plan Limit Warning */}
       {getPostsLeft() <= 1 && (
@@ -406,7 +213,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
               </h4>
               <p className="text-sm text-amber-700 mb-4">
                 {getPostsLeft() === 0
-                  ? "You've used all your posts for this month. Upgrade to continue generating content."
+                  ? "You've used all your posts for this month. Upgrade to continue generating trend-aware content."
                   : `You have ${getPostsLeft()} post${
                       getPostsLeft() === 1 ? "" : "s"
                     } remaining this month.`}
@@ -484,7 +291,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
       </div>
 
       {/* Recent Generated Posts Preview */}
-      {posts && posts.length > 0 && (
+      {posts && posts.length > 0 ? (
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-zinc-200/60 shadow-xl shadow-zinc-200/50">
           <h3 className="text-xl font-semibold text-zinc-900 mb-6">
             Recent Generated Posts
@@ -505,7 +312,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
                     </p>
                     <span className="text-xs text-zinc-400">•</span>
                     <p className="text-sm text-zinc-500 font-medium">
-                      Status: Ready for email
+                      {post.includedTrends ? "Trend-aware" : "Standard"}
                     </p>
                   </div>
                 </div>
@@ -516,10 +323,7 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
             ))}
           </div>
         </div>
-      )}
-
-      {/* Empty State */}
-      {(!posts || posts.length === 0) && (
+      ) : (
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-8 border border-zinc-200/60 shadow-xl shadow-zinc-200/50 text-center">
           <div className="w-16 h-16 bg-zinc-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Zap className="w-8 h-8 text-zinc-400" />
@@ -528,12 +332,13 @@ const AutomationTab = ({ user, posts, onRefresh, setCurrentView }) => {
             Automation Ready
           </h3>
           <p className="text-zinc-600 font-medium mb-4">
-            Your AI content generation is set up and ready to start creating
-            posts automatically.
+            Your AI content generation is set up and ready to create
+            {includeTrends ? " trend-aware" : ""} posts automatically.
           </p>
           <p className="text-sm text-zinc-500">
-            Posts will be generated based on your profile and emailed to you
-            according to your {actualSubscription} plan schedule.
+            Posts will be generated based on your profile
+            {includeTrends ? " and current industry trends" : ""} and emailed to
+            you according to your {actualSubscription} plan schedule.
           </p>
         </div>
       )}

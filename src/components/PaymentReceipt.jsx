@@ -265,12 +265,7 @@ const PaymentReceipt = ({ paymentData, user, onContinue }) => {
             </div>
         </div>
 
-        <div class="company-info">
-            <h4>ThoughtLeader AI Inc.</h4>
-            <p>123 Innovation Drive, Suite 100</p>
-            <p>San Francisco, CA 94107</p>
-            <p>linkedin.tool0@gmail.com</p>
-        </div>
+        
     </div>
 </body>
 </html>`;
