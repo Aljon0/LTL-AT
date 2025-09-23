@@ -330,20 +330,6 @@ const EnhancedPostGenerator = ({ user, includeTrends, onPostGenerated }) => {
             </div>
           </div>
 
-          {/* Character Count Badge */}
-          <div className="mb-4">
-            <span
-              className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                selectedPost === "short"
-                  ? "bg-blue-100 text-blue-700"
-                  : "bg-purple-100 text-purple-700"
-              }`}
-            >
-              {selectedPost === "short" ? "Short Format" : "Long Format"} •{" "}
-              {getCharacterCount(getCurrentPost())} characters
-            </span>
-          </div>
-
           <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-5 mb-4">
             <pre className="whitespace-pre-wrap text-sm text-zinc-800 font-medium leading-relaxed">
               {getCurrentPost()}
