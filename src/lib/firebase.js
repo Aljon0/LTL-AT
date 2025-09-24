@@ -1,4 +1,6 @@
 import { initializeApp } from "firebase/app";
+import { deleteUser } from "firebase/auth";
+
 import {
   createUserWithEmailAndPassword,
   getAuth,
@@ -61,6 +63,29 @@ export const signUpWithEmail = async (email, password, name) => {
     throw error;
   }
 };
+
+export const deleteUserAccount = async () => {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("No user is currently signed in");
+    }
+    
+    // Delete the user from Firebase Auth
+    await deleteUser(user);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting user account:", error);
+    
+    // If token is too old, user needs to re-authenticate
+    if (error.code === 'auth/requires-recent-login') {
+      throw new Error('Please sign out and sign in again before deleting your account for security reasons.');
+    }
+    
+    throw error;
+  }
+};
+
 
 // Sign Out
 export const signOutUser = () => {

@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 // Smart environment detection for API URL
@@ -25,9 +25,6 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-console.log('🔧 Detected API Base URL:', API_BASE_URL);
-console.log('🔧 Current hostname:', window.location.hostname);
-console.log('🔧 Environment:', import.meta.env.MODE);
 
 export const profileService = {
   // Test API connectivity
@@ -428,11 +425,14 @@ export const profileService = {
       if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId provided');
       }
-
+  
+      // Simple query without orderBy to avoid index requirement initially
+      // Once you create the index, you can uncomment the orderBy line
       const q = query(
         collection(db, 'posts'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
+        where('userId', '==', userId)
+        // Uncomment this line after creating the index:
+        // orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
@@ -445,10 +445,49 @@ export const profileService = {
           createdAt: doc.data().createdAt?.toDate()
         });
       });
-
+  
+      // Sort in JavaScript as a temporary workaround if index is not created
+      posts.sort((a, b) => {
+        const dateA = a.createdAt || new Date(0);
+        const dateB = b.createdAt || new Date(0);
+        return dateB - dateA; // Sort descending
+      });
+  
       return { posts };
     } catch (error) {
       console.error('Error fetching posts:', error);
+      
+      // If it's an index error, provide helpful message
+      if (error.message?.includes('index')) {
+        console.warn('Firestore index required. Please create the index using the link in the console.');
+        // Still try to return posts without ordering
+        try {
+          const simpleQuery = query(
+            collection(db, 'posts'),
+            where('userId', '==', userId)
+          );
+          const snapshot = await getDocs(simpleQuery);
+          const posts = [];
+          snapshot.forEach((doc) => {
+            posts.push({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate()
+            });
+          });
+          // Sort client-side
+          posts.sort((a, b) => {
+            const dateA = a.createdAt || new Date(0);
+            const dateB = b.createdAt || new Date(0);
+            return dateB - dateA;
+          });
+          return { posts };
+        } catch (fallbackError) {
+          console.error('Fallback query also failed:', fallbackError);
+          return { posts: [] };
+        }
+      }
+      
       return { posts: [] };
     }
   },
@@ -458,28 +497,47 @@ export const profileService = {
       if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId provided');
       }
-
+  
       const profileDoc = await getDoc(doc(db, 'profiles', userId));
       
       if (!profileDoc.exists()) {
         return { subscription: 'free', postsUsed: 0, postsLimit: 2 };
       }
-
+  
       const profileData = profileDoc.data();
       const subscription = profileData.subscription || 'free';
       
-      const currentMonth = new Date();
-      currentMonth.setDate(1);
-      currentMonth.setHours(0, 0, 0, 0);
+      // Try to get posts count for current month
+      let postsUsed = 0;
       
-      const postsQuery = query(
-        collection(db, 'posts'),
-        where('userId', '==', userId),
-        where('createdAt', '>=', currentMonth)
-      );
-      
-      const postsSnapshot = await getDocs(postsQuery);
-      const postsUsed = postsSnapshot.size;
+      try {
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        currentMonth.setHours(0, 0, 0, 0);
+        
+        // First try simple query without timestamp filter
+        const allPostsQuery = query(
+          collection(db, 'posts'),
+          where('userId', '==', userId)
+        );
+        
+        const allPostsSnapshot = await getDocs(allPostsQuery);
+        
+        // Filter by date in JavaScript
+        postsUsed = 0;
+        allPostsSnapshot.forEach((doc) => {
+          const postData = doc.data();
+          const createdAt = postData.createdAt?.toDate();
+          if (createdAt && createdAt >= currentMonth) {
+            postsUsed++;
+          }
+        });
+        
+      } catch (queryError) {
+        console.warn('Could not get posts count:', queryError);
+        // Default to 0 if query fails
+        postsUsed = 0;
+      }
       
       const limits = {
         free: 2,
@@ -600,20 +658,52 @@ export const profileService = {
       if (!userId || typeof userId !== 'string') {
         throw new Error('Invalid userId provided');
       }
-
-      const updateData = {
-        accountDeleted: true,
-        deletedAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      await updateDoc(doc(db, 'profiles', userId), updateData);
+  
+      // Step 1: Delete all user's posts
+      const postsQuery = query(
+        collection(db, 'posts'),
+        where('userId', '==', userId)
+      );
       
-      console.log('Account marked for deletion:', userId);
-      return { message: 'Account deletion initiated. Please contact support to complete the process.' };
+      const postsSnapshot = await getDocs(postsQuery);
+      const deletePromises = [];
+      
+      postsSnapshot.forEach((doc) => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+      
+      await Promise.all(deletePromises);
+      console.log(`Deleted ${deletePromises.length} posts for user ${userId}`);
+  
+      // Step 2: Delete user profile
+      await deleteDoc(doc(db, 'profiles', userId));
+      console.log(`Deleted profile for user ${userId}`);
+  
+      // Step 3: Call backend to delete any server-side data (optional)
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/delete-account`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        });
+        
+        if (!response.ok) {
+          console.warn('Backend deletion failed, but Firestore data was deleted');
+        }
+      } catch (backendError) {
+        console.warn('Could not notify backend of deletion:', backendError);
+      }
+  
+      return { 
+        success: true,
+        message: 'Account data deleted successfully' 
+      };
     } catch (error) {
-      console.error('Error deleting account:', error);
-      throw error;
+      console.error('Error deleting account data:', error);
+      throw new Error(`Failed to delete account data: ${error.message}`);
     }
   }
 };
+

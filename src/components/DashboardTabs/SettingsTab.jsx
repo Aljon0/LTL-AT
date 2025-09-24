@@ -176,15 +176,32 @@ const SettingsTab = ({ user, onRefresh }) => {
     setError(null);
 
     try {
-      // This would typically call a delete account API endpoint
-      // For now, we'll just show a message
-      setError(
-        "Account deletion is not implemented yet. Please contact support."
+      // First, delete all Firestore data
+      const deleteResult = await profileService.deleteAccount(
+        user?.uid || user?.id
       );
-      setShowDeleteModal(false);
+
+      if (deleteResult.success) {
+        // Then delete the Firebase Auth account
+        const { deleteUserAccount } = await import("../../lib/firebase");
+        await deleteUserAccount();
+
+        // The user will be automatically signed out after account deletion
+        // The onAuthStateChanged listener in App.jsx will handle the redirect
+        setSaveStatus("Account deleted successfully");
+      }
     } catch (error) {
       console.error("Error deleting account:", error);
-      setError("Failed to delete account. Please try again.");
+
+      if (error.message.includes("sign in again")) {
+        setError(error.message);
+      } else {
+        setError(
+          "Failed to delete account. Please try again or contact support."
+        );
+      }
+
+      setShowDeleteModal(false);
     } finally {
       setIsLoading(false);
     }
@@ -654,7 +671,7 @@ const SettingsTab = ({ user, onRefresh }) => {
         <div className="space-y-3">
           <button
             onClick={() => setShowDeleteModal(true)}
-            className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl transition-colors text-left font-medium border border-red-200 flex items-center space-x-2"
+            className="w-full px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl cursor-pointer transition-colors text-left font-medium border border-red-200 flex items-center space-x-2"
           >
             <Trash2 className="w-4 h-4" />
             <span>Delete Account</span>
@@ -720,14 +737,14 @@ const SettingsTab = ({ user, onRefresh }) => {
             <div className="flex space-x-4">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 font-medium"
+                className="flex-1 px-4 py-2 border border-zinc-300 text-zinc-700 rounded-lg cursor-pointer hover:bg-zinc-50 font-medium"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg cursor-pointer hover:bg-red-700 font-medium disabled:opacity-50"
               >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin mx-auto" />

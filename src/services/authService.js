@@ -43,6 +43,7 @@ export class AuthService {
       // Fallback: create local user object if API fails
       return {
         id: firebaseUser.uid,
+        uid: firebaseUser.uid,
         name: firebaseUser.displayName || "User",
         email: firebaseUser.email || "",
         avatar:
@@ -58,14 +59,20 @@ export class AuthService {
 
   async getUserProfile(uid, idToken) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/user/${uid}`, {
+      // FIX: Remove the duplicate /api from the path
+      const response = await fetch(`${API_BASE_URL}/auth/user/${uid}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get user profile");
+        // If 404, user doesn't exist yet - return null to trigger creation
+        if (response.status === 404) {
+          console.log("User profile not found, will create new one");
+          return null;
+        }
+        throw new Error(`Failed to get user profile: ${response.status}`);
       }
 
       const userData = await response.json();
