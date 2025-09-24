@@ -108,8 +108,6 @@ const OnboardingFlow = ({ onComplete, userId, user }) => {
         throw new Error("User ID is required");
       }
 
-      console.log("Saving profile for userId:", userId); // Debug log
-
       const profileData = {
         userId,
         linkedinUrl: data.linkedinUrl,
@@ -120,14 +118,11 @@ const OnboardingFlow = ({ onComplete, userId, user }) => {
         complianceOptIn: data.complianceOptIn,
       };
 
-      console.log("Profile data to save:", profileData); // Debug log
-
       await profileService.saveProfile(profileData, data.documents);
 
       // Call the onComplete callback to redirect to dashboard
       onComplete();
     } catch (error) {
-      console.error("Error saving profile:", error);
       setError(error.message || "Failed to save profile. Please try again.");
     } finally {
       setIsLoading(false);

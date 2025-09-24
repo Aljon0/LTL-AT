@@ -25,7 +25,6 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-
 export const profileService = {
   // Test API connectivity
   async testConnection() {
@@ -42,10 +41,8 @@ export const profileService = {
       }
       
       const result = await response.json();
-      console.log('✅ API connection successful:', result);
       return result;
     } catch (error) {
-      console.error('❌ API connection failed:', error);
       throw error;
     }
   },
@@ -55,10 +52,8 @@ export const profileService = {
     try {
       const response = await fetch(`${API_BASE_URL}/api/test-cors`);
       const result = await response.json();
-      console.log('✅ CORS test successful:', result);
       return result;
     } catch (error) {
-      console.error('❌ CORS test failed:', error);
       throw error;
     }
   },
@@ -67,19 +62,14 @@ export const profileService = {
   async checkSetupStatus(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
-        console.error('Invalid userId provided:', userId);
         return { setupCompleted: false };
       }
 
-      console.log('Checking setup status for userId:', userId);
-      
       const profileDoc = await getDoc(doc(db, 'profiles', userId));
       const setupCompleted = profileDoc.exists() ? profileDoc.data()?.setupCompleted || false : false;
       
-      console.log('Setup status result:', setupCompleted);
       return { setupCompleted };
     } catch (error) {
-      console.error('Error checking setup status:', error);
       return { setupCompleted: false };
     }
   },
@@ -88,7 +78,6 @@ export const profileService = {
   async getProfile(userId) {
     try {
       if (!userId || typeof userId !== 'string') {
-        console.error('Invalid userId provided:', userId);
         return { profile: null };
       }
 
@@ -98,7 +87,6 @@ export const profileService = {
       }
       return { profile: profileDoc.data() };
     } catch (error) {
-      console.error('Error fetching profile:', error);
       return { profile: null };
     }
   },
@@ -114,12 +102,8 @@ export const profileService = {
     }
 
     try {
-      console.log('Processing documents:', documents.length);
-      console.log('Making request to:', `${API_BASE_URL}/api/process-documents`);
-      
       const formData = new FormData();
       documents.forEach(file => {
-        console.log('Adding file to FormData:', file.name, file.type, file.size);
         formData.append('documents', file);
       });
 
@@ -129,16 +113,12 @@ export const profileService = {
         credentials: 'include',
       });
 
-      console.log('Document processing response status:', response.status);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Document processing failed:', errorText);
         throw new Error(`Failed to process documents: ${response.status} ${response.statusText}`);
       }
       
       const result = await response.json();
-      console.log('Document processing result:', result);
       return {
         documentContext: result.documentContext || '',
         processedFiles: result.processedFiles || documents.length,
@@ -146,7 +126,6 @@ export const profileService = {
         message: result.message || 'Documents processed successfully'
       };
     } catch (error) {
-      console.error('Error processing documents:', error);
       throw new Error(`Failed to process documents: ${error.message}`);
     }
   },
@@ -158,16 +137,12 @@ export const profileService = {
         throw new Error('Invalid or missing userId in profile data');
       }
 
-      console.log('Starting profile save for userId:', profileData.userId);
-
       let documentContext = '';
       
       // Process documents if any
       if (documents && documents.length > 0) {
-        console.log('Processing documents...');
         const result = await this.processDocuments(documents);
         documentContext = result.documentContext || '';
-        console.log('Document processing complete, context length:', documentContext.length);
       }
 
       // Prepare profile data for Firestore
@@ -186,13 +161,6 @@ export const profileService = {
         }
       };
 
-      console.log('Saving to Firestore with data:', {
-        userId: profileWithContext.userId,
-        setupCompleted: profileWithContext.setupCompleted,
-        hasDocumentContext: !!profileWithContext.documentContext,
-        documentContextLength: profileWithContext.documentContext?.length || 0
-      });
-
       // Save to Firestore with retry logic
       let retryCount = 0;
       const maxRetries = 3;
@@ -200,11 +168,9 @@ export const profileService = {
       while (retryCount < maxRetries) {
         try {
           await setDoc(doc(db, 'profiles', profileData.userId), profileWithContext, { merge: true });
-          console.log('Profile saved successfully to Firestore');
           break;
         } catch (firestoreError) {
           retryCount++;
-          console.error(`Firestore save attempt ${retryCount} failed:`, firestoreError);
           
           if (retryCount >= maxRetries) {
             throw new Error(`Failed to save to Firestore after ${maxRetries} attempts: ${firestoreError.message}`);
@@ -219,7 +185,6 @@ export const profileService = {
         profile: profileWithContext
       };
     } catch (error) {
-      console.error('Error saving profile:', error);
       throw new Error(`Failed to save profile: ${error.message}`);
     }
   },
@@ -231,8 +196,6 @@ export const profileService = {
         throw new Error('Invalid userId provided');
       }
 
-      console.log('Generating post for userId:', userId);
-
       // Get user profile from Firestore
       const profileDoc = await getDoc(doc(db, 'profiles', userId));
       
@@ -241,7 +204,6 @@ export const profileService = {
       }
 
       const profileData = profileDoc.data();
-      console.log('Found profile data for post generation');
 
       const response = await fetch(`${API_BASE_URL}/api/generate-post`, {
         method: 'POST',
@@ -277,14 +239,12 @@ export const profileService = {
       };
 
       const postRef = await addDoc(collection(db, 'posts'), postData);
-      console.log('Post saved with ID:', postRef.id);
 
       return {
         ...result,
         postId: postRef.id
       };
     } catch (error) {
-      console.error('Error generating post:', error);
       throw error;
     }
   },
@@ -296,17 +256,12 @@ export const profileService = {
         throw new Error('Invalid userId provided');
       }
 
-      console.log('Attempting to send test email...');
-      console.log('API URL:', API_BASE_URL);
-
       // First check if email service is available
       try {
         const healthResponse = await fetch(`${API_BASE_URL}/api/test-email-config`);
         const healthData = await healthResponse.json();
         
         if (!healthResponse.ok || !healthData.success) {
-          console.warn('Email service not configured on server:', healthData);
-          
           // Always show fallback when email service is not configured
           return {
             success: false,
@@ -316,7 +271,6 @@ export const profileService = {
           };
         }
       } catch (healthError) {
-        console.warn('Could not check email service health:', healthError);
         // If we can't even check health, assume email is not configured
         return {
           success: false,
@@ -344,7 +298,6 @@ export const profileService = {
         
         // Handle email service not configured gracefully
         if (response.status === 500 && errorText.includes('Email service not configured')) {
-          console.warn('Email service not configured, providing fallback');
           return {
             success: false,
             message: 'Post generated successfully! Email service is being configured. Here\'s your content:',
@@ -357,14 +310,11 @@ export const profileService = {
       }
       
       const result = await response.json();
-      console.log('Test email sent successfully');
       return {
         success: true,
         ...result
       };
     } catch (error) {
-      console.error('Error sending test email:', error);
-      
       // Always provide fallback instead of failing
       return {
         success: false,
@@ -375,7 +325,6 @@ export const profileService = {
     }
   },
 
-  // Rest of the methods remain the same...
   async updateProfile(userId, updates) {
     try {
       if (!userId || typeof userId !== 'string') {
@@ -389,10 +338,8 @@ export const profileService = {
 
       await updateDoc(doc(db, 'profiles', userId), updateData);
       
-      console.log('Profile updated successfully');
       return { message: 'Profile updated successfully' };
     } catch (error) {
-      console.error('Error updating profile:', error);
       throw error;
     }
   },
@@ -412,10 +359,8 @@ export const profileService = {
 
       await updateDoc(doc(db, 'profiles', userId), updateData);
       
-      console.log('Automation settings updated successfully');
       return { message: 'Automation settings updated successfully' };
     } catch (error) {
-      console.error('Error updating automation settings:', error);
       throw error;
     }
   },
@@ -426,13 +371,9 @@ export const profileService = {
         throw new Error('Invalid userId provided');
       }
   
-      // Simple query without orderBy to avoid index requirement initially
-      // Once you create the index, you can uncomment the orderBy line
       const q = query(
         collection(db, 'posts'),
         where('userId', '==', userId)
-        // Uncomment this line after creating the index:
-        // orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
@@ -445,7 +386,7 @@ export const profileService = {
           createdAt: doc.data().createdAt?.toDate()
         });
       });
-  
+
       // Sort in JavaScript as a temporary workaround if index is not created
       posts.sort((a, b) => {
         const dateA = a.createdAt || new Date(0);
@@ -455,11 +396,8 @@ export const profileService = {
   
       return { posts };
     } catch (error) {
-      console.error('Error fetching posts:', error);
-      
       // If it's an index error, provide helpful message
       if (error.message?.includes('index')) {
-        console.warn('Firestore index required. Please create the index using the link in the console.');
         // Still try to return posts without ordering
         try {
           const simpleQuery = query(
@@ -483,7 +421,6 @@ export const profileService = {
           });
           return { posts };
         } catch (fallbackError) {
-          console.error('Fallback query also failed:', fallbackError);
           return { posts: [] };
         }
       }
@@ -534,7 +471,6 @@ export const profileService = {
         });
         
       } catch (queryError) {
-        console.warn('Could not get posts count:', queryError);
         // Default to 0 if query fails
         postsUsed = 0;
       }
@@ -551,7 +487,6 @@ export const profileService = {
         postsLimit: limits[subscription] || 2
       };
     } catch (error) {
-      console.error('Error getting subscription info:', error);
       return { subscription: 'free', postsUsed: 0, postsLimit: 2 };
     }
   },
@@ -578,7 +513,6 @@ export const profileService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error creating payment intent:', error);
       throw error;
     }
   },
@@ -604,7 +538,6 @@ export const profileService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error confirming payment:', error);
       throw error;
     }
   },
@@ -623,10 +556,8 @@ export const profileService = {
 
       await updateDoc(doc(db, 'profiles', userId), updateData);
       
-      console.log('Subscription upgraded successfully to:', newPlan);
       return { message: 'Subscription updated successfully' };
     } catch (error) {
-      console.error('Error upgrading subscription:', error);
       throw error;
     }
   },
@@ -645,10 +576,8 @@ export const profileService = {
 
       await updateDoc(doc(db, 'profiles', userId), updateData);
       
-      console.log('Subscription cancelled successfully for userId:', userId);
       return { message: 'Subscription cancelled successfully' };
     } catch (error) {
-      console.error('Error cancelling subscription:', error);
       throw error;
     }
   },
@@ -673,11 +602,9 @@ export const profileService = {
       });
       
       await Promise.all(deletePromises);
-      console.log(`Deleted ${deletePromises.length} posts for user ${userId}`);
   
       // Step 2: Delete user profile
       await deleteDoc(doc(db, 'profiles', userId));
-      console.log(`Deleted profile for user ${userId}`);
   
       // Step 3: Call backend to delete any server-side data (optional)
       try {
@@ -690,10 +617,10 @@ export const profileService = {
         });
         
         if (!response.ok) {
-          console.warn('Backend deletion failed, but Firestore data was deleted');
+          // Backend deletion failed, but Firestore data was deleted
         }
       } catch (backendError) {
-        console.warn('Could not notify backend of deletion:', backendError);
+        // Could not notify backend of deletion
       }
   
       return { 
@@ -701,9 +628,7 @@ export const profileService = {
         message: 'Account data deleted successfully' 
       };
     } catch (error) {
-      console.error('Error deleting account data:', error);
       throw new Error(`Failed to delete account data: ${error.message}`);
     }
   }
 };
-

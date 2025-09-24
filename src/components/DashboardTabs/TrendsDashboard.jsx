@@ -23,8 +23,6 @@ const TrendsDashboard = ({ user, includeTrends, setIncludeTrends }) => {
           ? user.topics
           : ["business", "technology"];
 
-      console.log("Loading trends for topics:", userTopics);
-
       const response = await fetch(
         `http://localhost:3001/api/trends?topics=${userTopics.join(
           ","
@@ -46,15 +44,10 @@ const TrendsDashboard = ({ user, includeTrends, setIncludeTrends }) => {
           setTrendsLastUpdated(new Date(data.lastUpdated));
         }
       } else {
-        console.error(
-          "Failed to load trends:",
-          data.error || response.statusText
-        );
         setError(data.error || "Failed to load trends");
         setTrends([]);
       }
     } catch (error) {
-      console.error("Error loading trends:", error);
       setError("Failed to connect to server");
       setTrends([]);
     } finally {
@@ -72,8 +65,6 @@ const TrendsDashboard = ({ user, includeTrends, setIncludeTrends }) => {
           ? user.topics
           : ["business", "technology"];
 
-      console.log("Refreshing trends for topics:", userTopics);
-
       const response = await fetch("http://localhost:3001/api/trends/refresh", {
         method: "POST",
         headers: {
@@ -88,18 +79,12 @@ const TrendsDashboard = ({ user, includeTrends, setIncludeTrends }) => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        console.log("Trends refreshed:", data.message);
         // Reload trends after successful refresh
         await loadTrends();
       } else {
-        console.error(
-          "Failed to refresh trends:",
-          data.error || "Unknown error"
-        );
         setError(data.error || "Failed to refresh trends");
       }
     } catch (error) {
-      console.error("Error refreshing trends:", error);
       setError("Failed to connect to server");
     } finally {
       setLoadingTrends(false);

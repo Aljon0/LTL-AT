@@ -69,7 +69,7 @@ export class AuthService {
       if (!response.ok) {
         // If 404, user doesn't exist yet - return null to trigger creation
         if (response.status === 404) {
-          console.log("User profile not found, will create new one");
+          
           return null;
         }
         throw new Error(`Failed to get user profile: ${response.status}`);
