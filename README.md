@@ -37,12 +37,3 @@ The frontend connects with the backend API to allow users to configure their pro
 - [Axios](https://axios-http.com/) for API calls
 
 ---
-
-## 📦 Installation & Setup
-
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/your-username/linkedin-ai-posting.git
-cd linkedin-ai-posting/frontend
-```
